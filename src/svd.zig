@@ -454,6 +454,17 @@ pub const Register = struct {
         }
     }
 
+    fn writeFieldlessRegister(reg_name: []const u8, reg_reset_value: u32, out_stream: anytype) !void {
+        // Create fields to access the whole register
+        // TODO: right now we have to manually chunk unused bits to 8-bit boundaries as a workaround
+        // to this bug https://github.com/ziglang/zig/issues/2627
+        var i: usize = 0;
+        while (i < 4) : (i += 1) {
+            const chunk_reset_value = @intCast(u8, (reg_reset_value >> @intCast(u5, i * 8)) & 0b11111111);
+            try out_stream.print("\n{s}_{}: u8 = {},", .{ reg_name, i, chunk_reset_value });
+        }
+    }
+
     pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, out_stream: anytype) !void {
         try out_stream.writeAll("\n");
         if (!self.isValid()) {
@@ -488,8 +499,10 @@ pub const Register = struct {
             last_uncovered_bit = bit_offset + bit_width;
         }
 
-        // Check if we need padding at the end
-        if (last_uncovered_bit != 32) {
+        // Check if we need padding at the end (or, a register wide field)
+        if (self.fields.items.len == 0) {
+            try writeFieldlessRegister(name, self.reset_value, out_stream);
+        } else if (last_uncovered_bit != 32) {
             try writeUnusedField(last_uncovered_bit, 32, self.reset_value, out_stream);
         }
 
