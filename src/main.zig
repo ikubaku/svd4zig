@@ -371,6 +371,13 @@ pub fn main() anyerror!void {
                     if (chunk.data) |data| {
                         cur_field.bit_width = fmt.parseInt(u32, data, 10) catch null;
                     }
+                } else if (ascii.eqlIgnoreCase(chunk.tag, "bitRange")) {
+                    if (chunk.data) |data| {
+                        if (parseBitRange(data)) |bit_range| {
+                            cur_field.bit_width = bit_range.msb - bit_range.lsb + 1;
+                            cur_field.bit_offset = bit_range.lsb;
+                        }
+                    }
                 } else if (ascii.eqlIgnoreCase(chunk.tag, "access")) {
                     if (chunk.data) |data| {
                         cur_field.access = parseAccessValue(data) orelse cur_field.access;
@@ -491,4 +498,30 @@ fn parseAccessValue(data: []const u8) ?svd.Access {
         return .WriteOnly;
     }
     return null;
+}
+
+const BitRange = struct {
+    msb: u32,
+    lsb: u32,
+};
+
+fn parseBitRange(data: []const u8) ?BitRange {
+    const msb_start = (mem.indexOf(u8, data, "[") orelse return null) + 1;
+    const msb_end = mem.indexOf(u8, data, ":") orelse return null;
+    const lsb_start = msb_end + 1;
+    const lsb_end = mem.indexOf(u8, data, "]") orelse return null;
+    const msb = fmt.parseInt(u32, data[msb_start..msb_end], 10) catch return null;
+    const lsb = fmt.parseInt(u32, data[lsb_start..lsb_end], 10) catch return null;
+
+    return BitRange{
+        .msb = msb,
+        .lsb = lsb,
+    };
+}
+
+test "Test parseBitRange" {
+    const bit_range = parseBitRange("[12:3]").?;
+
+    try std.testing.expectEqual(bit_range.msb, 12);
+    try std.testing.expectEqual(bit_range.lsb, 3);
 }
