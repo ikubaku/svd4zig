@@ -382,6 +382,14 @@ pub fn main() anyerror!void {
                     if (chunk.data) |data| {
                         cur_field.access = parseAccessValue(data) orelse cur_field.access;
                     }
+                } else if (ascii.eqlIgnoreCase(chunk.tag, "enumeratedValue")) {
+                    state = .EnumeratedValue;
+                }
+            },
+            .EnumeratedValue => {
+                // Do-nothing parser for the workaround to convert rp2040.svd
+                if (ascii.eqlIgnoreCase(chunk.tag, "/enumeratedValue")) {
+                    state = .Field;
                 }
             },
             .Finished => {
@@ -408,6 +416,7 @@ const SvdParseState = enum {
     Register,
     Fields,
     Field,
+    EnumeratedValue,
     Finished,
 };
 
