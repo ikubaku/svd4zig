@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMap;
+const SinglyLinkedList = std.SinglyLinkedList;
 const min = std.math.min;
 const warn = std.debug.warn;
 
@@ -184,8 +185,7 @@ pub const Peripheral = struct {
         errdefer group_name.deinit();
         var description = ArrayList(u8).init(allocator);
         errdefer description.deinit();
-        var registers = Registers.init(allocator);
-        errdefer registers.deinit();
+        var registers = Registers {};
 
         return Self{
             .name = name,
@@ -206,9 +206,7 @@ pub const Peripheral = struct {
         try the_copy.description.appendSlice(self.description.items);
         the_copy.base_address = self.base_address;
         the_copy.address_block = self.address_block;
-        for (self.registers.items) |self_register| {
-            try the_copy.registers.append(try self_register.copy(allocator));
-        }
+        the_copy.registers = self.registers;
 
         return the_copy;
     }
@@ -217,7 +215,6 @@ pub const Peripheral = struct {
         self.name.deinit();
         self.group_name.deinit();
         self.description.deinit();
-        self.registers.deinit();
     }
 
     pub fn isValid(self: Self) bool {
@@ -245,8 +242,9 @@ pub const Peripheral = struct {
             \\const base_address = 0x{x};
         , .{ description, name, base_address });
         // now print registers
-        for (self.registers.items) |register| {
-            try out_stream.print("{}\n", .{register});
+        var it = self.registers.first;
+        while (it) |node| : (it = node.next) {
+            try out_stream.print("{}\n", .{node.data});
         }
         // and close the peripheral
         try out_stream.print("}};", .{});
@@ -340,7 +338,7 @@ pub const Interrupt = struct {
     }
 };
 
-const Registers = ArrayList(Register);
+pub const Registers = SinglyLinkedList(Register);
 
 pub const Register = struct {
     periph_containing: ArrayList(u8),

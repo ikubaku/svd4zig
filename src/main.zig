@@ -200,9 +200,10 @@ pub fn main() anyerror!void {
                     if (chunk.data) |data| {
                         // periph could be copy, must update periph name in sub-fields
                         try cur_periph.name.replaceRange(0, cur_periph.name.items.len, data);
-                        for (cur_periph.registers.items) |*reg| {
-                            try reg.periph_containing.replaceRange(0, reg.periph_containing.items.len, data);
-                            for (reg.fields.items) |*field| {
+                        var it = cur_periph.registers.first;
+                        while (it) |node| : (it = node.next) {
+                            try node.data.periph_containing.replaceRange(0, node.data.periph_containing.items.len, data);
+                            for (node.data.fields.items) |*field| {
                                 try field.periph.replaceRange(0, field.periph.items.len, data);
                             }
                         }
@@ -297,13 +298,16 @@ pub fn main() anyerror!void {
                     const reset_value = dev.reg_default_reset_value orelse 0;
                     const size = dev.reg_default_size orelse 32;
                     var register = try svd.Register.init(allocator, cur_periph.name.items, reset_value, size);
-                    try cur_periph.registers.append(register);
+                    var registers_node = try allocator.create(svd.Registers.Node);
+                    registers_node.* = svd.Registers.Node{ .data = register };
+                    cur_periph.registers.prepend(registers_node);
                     state = .Register;
                 }
             },
             .Register => {
                 var cur_periph = &dev.peripherals.items[dev.peripherals.items.len - 1];
-                var cur_reg = &cur_periph.registers.items[cur_periph.registers.items.len - 1];
+                var cur_reg_node = cur_periph.registers.first orelse unreachable;
+                var cur_reg = &cur_reg_node.data;
                 if (ascii.eqlIgnoreCase(chunk.tag, "/register")) {
                     state = .Registers;
                 } else if (ascii.eqlIgnoreCase(chunk.tag, "name")) {
@@ -340,7 +344,8 @@ pub fn main() anyerror!void {
             },
             .Fields => {
                 var cur_periph = &dev.peripherals.items[dev.peripherals.items.len - 1];
-                var cur_reg = &cur_periph.registers.items[cur_periph.registers.items.len - 1];
+                var cur_reg_node = cur_periph.registers.first orelse unreachable;
+                var cur_reg = &cur_reg_node.data;
                 if (ascii.eqlIgnoreCase(chunk.tag, "/fields")) {
                     state = .Register;
                 } else if (ascii.eqlIgnoreCase(chunk.tag, "field")) {
@@ -351,7 +356,8 @@ pub fn main() anyerror!void {
             },
             .Field => {
                 var cur_periph = &dev.peripherals.items[dev.peripherals.items.len - 1];
-                var cur_reg = &cur_periph.registers.items[cur_periph.registers.items.len - 1];
+                var cur_reg_node = cur_periph.registers.first orelse unreachable;
+                var cur_reg = &cur_reg_node.data;
                 var cur_field = &cur_reg.fields.items[cur_reg.fields.items.len - 1];
                 if (ascii.eqlIgnoreCase(chunk.tag, "/field")) {
                     state = .Fields;
