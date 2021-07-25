@@ -528,8 +528,7 @@ pub const Fields = ArrayList(Field);
 
 pub const Field = struct {
     periph: ArrayList(u8),
-    register: ArrayList(u8),
-    register_reset_value: u32,
+    register: *Register,
     name: ArrayList(u8),
     description: ArrayList(u8),
     bit_offset: ?u32,
@@ -539,13 +538,11 @@ pub const Field = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: *Allocator, periph_containing: []const u8, register_containing: []const u8, register_reset_value: u32) !Self {
+    pub fn init(allocator: *Allocator, periph_containing: []const u8, register_containing: *Register) !Self {
         var periph = ArrayList(u8).init(allocator);
         try periph.appendSlice(periph_containing);
         errdefer periph.deinit();
-        var register = ArrayList(u8).init(allocator);
-        try register.appendSlice(register_containing);
-        errdefer register.deinit();
+        var register = register_containing;
         var name = ArrayList(u8).init(allocator);
         errdefer name.deinit();
         var description = ArrayList(u8).init(allocator);
@@ -554,7 +551,6 @@ pub const Field = struct {
         return Self{
             .periph = periph,
             .register = register,
-            .register_reset_value = register_reset_value,
             .name = name,
             .description = description,
             .bit_offset = null,
@@ -563,7 +559,7 @@ pub const Field = struct {
     }
 
     pub fn copy(self: Self, allocator: *Allocator) !Self {
-        var the_copy = try Self.init(allocator, self.periph.items, self.register.items, self.register_reset_value);
+        var the_copy = try Self.init(allocator, self.periph.items, self.register);
 
         try the_copy.name.appendSlice(self.name.items);
         try the_copy.description.appendSlice(self.description.items);
@@ -576,7 +572,6 @@ pub const Field = struct {
 
     pub fn deinit(self: *Self) void {
         self.periph.deinit();
-        self.register.deinit();
         self.name.deinit();
         self.description.deinit();
     }
@@ -603,7 +598,7 @@ pub const Field = struct {
         const start_bit = self.bit_offset.?;
         const end_bit = (start_bit + self.bit_width.? - 1);
         const bit_width = self.bit_width.?;
-        const reg_reset_value = self.register_reset_value;
+        const reg_reset_value = self.register.reset_value;
         const reset_value = fieldResetValue(start_bit, bit_width, reg_reset_value);
         try out_stream.print(
             \\/// {s} [{}:{}]
