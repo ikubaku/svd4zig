@@ -2,7 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const ascii = std.ascii;
 const fmt = std.fmt;
-const warn = std.debug.warn;
+const warn = std.log.warn;
 
 const svd = @import("svd.zig");
 
@@ -76,7 +76,7 @@ pub fn main() anyerror!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    const allocator = &arena.allocator;
+    var allocator = arena.allocator();
 
     var args = std.process.args();
 
@@ -89,7 +89,7 @@ pub fn main() anyerror!void {
     const stream = &file.reader();
 
     var state = SvdParseState.Device;
-    var dev = try svd.Device.init(allocator);
+    var dev = try svd.Device.init(&allocator);
     var cur_interrupt: svd.Interrupt = undefined;
     while (try stream.readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
         if (line.len == 0) {
@@ -113,7 +113,7 @@ pub fn main() anyerror!void {
                         try dev.description.insertSlice(0, data);
                     }
                 } else if (ascii.eqlIgnoreCase(chunk.tag, "cpu")) {
-                    var cpu = try svd.Cpu.init(allocator);
+                    var cpu = try svd.Cpu.init(&allocator);
                     dev.cpu = cpu;
                     state = .Cpu;
                 } else if (ascii.eqlIgnoreCase(chunk.tag, "addressUnitBits")) {
@@ -180,13 +180,13 @@ pub fn main() anyerror!void {
                     if (chunk.derivedFrom) |derivedFrom| {
                         for (dev.peripherals.items) |periph_being_checked| {
                             if (mem.eql(u8, periph_being_checked.name.items, derivedFrom)) {
-                                try dev.peripherals.append(try periph_being_checked.copy(allocator));
+                                try dev.peripherals.append(try periph_being_checked.copy(&allocator));
                                 state = .Peripheral;
                                 break;
                             }
                         }
                     } else {
-                        var periph = try svd.Peripheral.init(allocator);
+                        var periph = try svd.Peripheral.init(&allocator);
                         try dev.peripherals.append(periph);
                         state = .Peripheral;
                     }
@@ -221,15 +221,15 @@ pub fn main() anyerror!void {
                         cur_periph.base_address = parseHexLiteral(data);
                     }
                 } else if (ascii.eqlIgnoreCase(chunk.tag, "addressBlock")) {
-                    if (cur_periph.address_block) |x| {
+                    if (cur_periph.address_block) |_| {
                         // do nothing
                     } else {
-                        var block = try svd.AddressBlock.init(allocator);
+                        var block = try svd.AddressBlock.init(&allocator);
                         cur_periph.address_block = block;
                     }
                     state = .AddressBlock;
                 } else if (ascii.eqlIgnoreCase(chunk.tag, "interrupt")) {
-                    cur_interrupt = try svd.Interrupt.init(allocator);
+                    cur_interrupt = try svd.Interrupt.init(&allocator);
                     state = .Interrupt;
                 } else if (ascii.eqlIgnoreCase(chunk.tag, "registers")) {
                     state = .Registers;
@@ -297,7 +297,7 @@ pub fn main() anyerror!void {
                 } else if (ascii.eqlIgnoreCase(chunk.tag, "register")) {
                     const reset_value = dev.reg_default_reset_value orelse 0;
                     const size = dev.reg_default_size orelse 32;
-                    var register = try svd.Register.init(allocator, cur_periph.name.items, reset_value, size);
+                    var register = try svd.Register.init(&allocator, cur_periph.name.items, reset_value, size);
                     var registers_node = try allocator.create(svd.Registers.Node);
                     registers_node.* = svd.Registers.Node{ .data = register };
                     cur_periph.registers.prepend(registers_node);
@@ -349,7 +349,7 @@ pub fn main() anyerror!void {
                 if (ascii.eqlIgnoreCase(chunk.tag, "/fields")) {
                     state = .Register;
                 } else if (ascii.eqlIgnoreCase(chunk.tag, "field")) {
-                    var field = try svd.Field.init(allocator, cur_periph.name.items, cur_reg);
+                    var field = try svd.Field.init(&allocator, cur_periph.name.items, cur_reg);
                     try cur_reg.fields.append(field);
                     state = .Field;
                 }
@@ -440,10 +440,10 @@ fn getChunk(line: []const u8) ?XmlChunk {
     };
 
     var trimmed = mem.trim(u8, line, " \n");
-    var toker = mem.tokenize(trimmed, "<>"); //" =\n<>\"");
+    var toker = mem.tokenize(u8, trimmed, "<>"); //" =\n<>\"");
 
     if (toker.next()) |maybe_tag| {
-        var tag_toker = mem.tokenize(maybe_tag, " =\"");
+        var tag_toker = mem.tokenize(u8, maybe_tag, " =\"");
         chunk.tag = tag_toker.next() orelse return null;
         if (tag_toker.next()) |maybe_tag_property| {
             if (ascii.eqlIgnoreCase(maybe_tag_property, "derivedFrom")) {

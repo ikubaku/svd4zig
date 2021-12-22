@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMap;
 const SinglyLinkedList = std.SinglyLinkedList;
 const min = std.math.min;
-const warn = std.debug.warn;
+const warn = std.log.warn;
 
 /// Top Level
 pub const Device = struct {
@@ -31,15 +31,15 @@ pub const Device = struct {
     const Self = @This();
 
     pub fn init(allocator: *Allocator) !Self {
-        var name = ArrayList(u8).init(allocator);
+        var name = ArrayList(u8).init(allocator.*);
         errdefer name.deinit();
-        var version = ArrayList(u8).init(allocator);
+        var version = ArrayList(u8).init(allocator.*);
         errdefer version.deinit();
-        var description = ArrayList(u8).init(allocator);
+        var description = ArrayList(u8).init(allocator.*);
         errdefer description.deinit();
-        var peripherals = Peripherals.init(allocator);
+        var peripherals = Peripherals.init(allocator.*);
         errdefer peripherals.deinit();
-        var interrupts = Interrupts.init(allocator);
+        var interrupts = Interrupts.init(allocator.*);
         errdefer interrupts.deinit();
 
         return Self{
@@ -66,6 +66,9 @@ pub const Device = struct {
     }
 
     pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, out_stream: anytype) !void {
+        _ = fmt;
+        _ = options;
+
         const name = if (self.name.items.len == 0) "unknown" else self.name.items;
         const version = if (self.version.items.len == 0) "unknown" else self.version.items;
         const description = if (self.description.items.len == 0) "unknown" else self.description.items;
@@ -112,11 +115,11 @@ pub const Cpu = struct {
     const Self = @This();
 
     pub fn init(allocator: *Allocator) !Self {
-        var name = ArrayList(u8).init(allocator);
+        var name = ArrayList(u8).init(allocator.*);
         errdefer name.deinit();
-        var revision = ArrayList(u8).init(allocator);
+        var revision = ArrayList(u8).init(allocator.*);
         errdefer revision.deinit();
-        var endian = ArrayList(u8).init(allocator);
+        var endian = ArrayList(u8).init(allocator.*);
         errdefer endian.deinit();
 
         return Self{
@@ -137,6 +140,9 @@ pub const Cpu = struct {
     }
 
     pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, out_stream: anytype) !void {
+        _ = fmt;
+        _ = options;
+
         try out_stream.writeAll("\n");
 
         const name = if (self.name.items.len == 0) "unknown" else self.name.items;
@@ -179,13 +185,13 @@ pub const Peripheral = struct {
     const Self = @This();
 
     pub fn init(allocator: *Allocator) !Self {
-        var name = ArrayList(u8).init(allocator);
+        var name = ArrayList(u8).init(allocator.*);
         errdefer name.deinit();
-        var group_name = ArrayList(u8).init(allocator);
+        var group_name = ArrayList(u8).init(allocator.*);
         errdefer group_name.deinit();
-        var description = ArrayList(u8).init(allocator);
+        var description = ArrayList(u8).init(allocator.*);
         errdefer description.deinit();
-        var registers = Registers {};
+        var registers = Registers{};
 
         return Self{
             .name = name,
@@ -227,6 +233,9 @@ pub const Peripheral = struct {
     }
 
     pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, out_stream: anytype) !void {
+        _ = fmt;
+        _ = options;
+
         try out_stream.writeAll("\n");
         if (!self.isValid()) {
             try out_stream.writeAll("// Not enough info to print peripheral value\n");
@@ -261,7 +270,7 @@ pub const AddressBlock = struct {
     const Self = @This();
 
     pub fn init(allocator: *Allocator) !Self {
-        var usage = ArrayList(u8).init(allocator);
+        var usage = ArrayList(u8).init(allocator.*);
         errdefer usage.deinit();
 
         return Self{
@@ -286,9 +295,9 @@ pub const Interrupt = struct {
     const Self = @This();
 
     pub fn init(allocator: *Allocator) !Self {
-        var name = ArrayList(u8).init(allocator);
+        var name = ArrayList(u8).init(allocator.*);
         errdefer name.deinit();
-        var description = ArrayList(u8).init(allocator);
+        var description = ArrayList(u8).init(allocator.*);
         errdefer description.deinit();
 
         return Self{
@@ -323,9 +332,12 @@ pub const Interrupt = struct {
     }
 
     pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, out_stream: anytype) !void {
+        _ = fmt;
+        _ = options;
+        
         try out_stream.writeAll("\n");
         if (!self.isValid()) {
-            try output(context, "// Not enough info to print interrupt value\n");
+            try out_stream.writeAll("// Not enough info to print interrupt value\n");
             return;
         }
         const name = self.name.items;
@@ -334,7 +346,7 @@ pub const Interrupt = struct {
             \\/// {s}
             \\pub const {s} = {s};
             \\
-        , .{ description, name, value.? });
+        , .{ description, name, self.value.? });
     }
 };
 
@@ -355,16 +367,16 @@ pub const Register = struct {
     const Self = @This();
 
     pub fn init(allocator: *Allocator, periph: []const u8, reset_value: u32, size: u32) !Self {
-        var prefix = ArrayList(u8).init(allocator);
+        var prefix = ArrayList(u8).init(allocator.*);
         errdefer prefix.deinit();
         try prefix.appendSlice(periph);
-        var name = ArrayList(u8).init(allocator);
+        var name = ArrayList(u8).init(allocator.*);
         errdefer name.deinit();
-        var display_name = ArrayList(u8).init(allocator);
+        var display_name = ArrayList(u8).init(allocator.*);
         errdefer display_name.deinit();
-        var description = ArrayList(u8).init(allocator);
+        var description = ArrayList(u8).init(allocator.*);
         errdefer description.deinit();
-        var fields = Fields.init(allocator);
+        var fields = Fields.init(allocator.*);
         errdefer fields.deinit();
 
         return Self{
@@ -413,6 +425,8 @@ pub const Register = struct {
     }
 
     fn fieldsSortCompare(context: void, left: Field, right: Field) bool {
+        _ = context;
+
         if (left.bit_offset != null and right.bit_offset != null) {
             if (left.bit_offset.? < right.bit_offset.?) {
                 return true;
@@ -464,13 +478,15 @@ pub const Register = struct {
     }
 
     pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, out_stream: anytype) !void {
+        _ = fmt;
+        _ = options;
+
         try out_stream.writeAll("\n");
         if (!self.isValid()) {
             try out_stream.writeAll("// Not enough info to print register value\n");
             return;
         }
         const name = self.name.items;
-        const periph = self.periph_containing.items;
         const description = if (self.description.items.len == 0) "No description" else self.description.items;
         // print packed struct containing fields
         try out_stream.print(
@@ -537,13 +553,13 @@ pub const Field = struct {
     const Self = @This();
 
     pub fn init(allocator: *Allocator, periph_containing: []const u8, register_containing: *Register) !Self {
-        var periph = ArrayList(u8).init(allocator);
+        var periph = ArrayList(u8).init(allocator.*);
         try periph.appendSlice(periph_containing);
         errdefer periph.deinit();
         var register = register_containing;
-        var name = ArrayList(u8).init(allocator);
+        var name = ArrayList(u8).init(allocator.*);
         errdefer name.deinit();
-        var description = ArrayList(u8).init(allocator);
+        var description = ArrayList(u8).init(allocator.*);
         errdefer description.deinit();
 
         return Self{
@@ -582,6 +598,9 @@ pub const Field = struct {
     }
 
     pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, out_stream: anytype) !void {
+        _ = fmt;
+        _ = options;
+
         try out_stream.writeAll("\n");
         if (self.name.items.len == 0) {
             try out_stream.writeAll("// No name to print field value\n");
